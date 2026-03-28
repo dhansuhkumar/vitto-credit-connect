@@ -4,11 +4,16 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ArrowRight, CheckCircle2, Loader2 } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
+
+const API_BASE = "https://vitto-c61w.onrender.com";
 
 const SignupForm = () => {
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [otpSent, setOtpSent] = useState(false);
+  const [token, setToken] = useState("");
+  const { toast } = useToast();
 
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
@@ -19,27 +24,81 @@ const SignupForm = () => {
   const [city, setCity] = useState("");
   const [loanBook, setLoanBook] = useState("");
 
-  const simulateAsync = (cb: () => void) => {
-    setLoading(true);
-    setTimeout(() => {
-      setLoading(false);
-      cb();
-    }, 1500);
+  const handleError = (msg: string) => {
+    toast({ title: "Error", description: msg, variant: "destructive" });
   };
 
-  const handleSendOtp = () => {
+  const handleSendOtp = async () => {
     if (!email || !phone) return;
-    simulateAsync(() => setOtpSent(true));
+    setLoading(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/auth/send-otp`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, phone }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.message || "Failed to send OTP");
+      }
+      setOtpSent(true);
+    } catch (e: any) {
+      handleError(e.message);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleVerifyOtp = () => {
+  const handleVerifyOtp = async () => {
     if (!otp) return;
-    simulateAsync(() => setStep(2));
+    setLoading(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/auth/verify-otp`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, phone, otp }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.message || "Invalid OTP");
+      }
+      const data = await res.json();
+      setToken(data.token);
+      setStep(2);
+    } catch (e: any) {
+      handleError(e.message);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleSubmitOrg = () => {
+  const handleSubmitOrg = async () => {
     if (!orgName || !orgType || !city) return;
-    simulateAsync(() => setStep(3));
+    setLoading(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/leads`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          institution_name: orgName,
+          institution_type: orgType,
+          city,
+          loan_book_size: loanBook,
+        }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.message || "Submission failed");
+      }
+      setStep(3);
+    } catch (e: any) {
+      handleError(e.message);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
